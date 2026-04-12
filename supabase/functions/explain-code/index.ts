@@ -42,11 +42,12 @@ Skip empty lines. For beginner level use simple words and analogies. Return ONLY
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -65,11 +66,15 @@ Skip empty lines. For beginner level use simple words and analogies. Return ONLY
       }
       const t = await response.text();
       console.error("AI error:", response.status, t);
-      throw new Error("AI gateway error");
+      throw new Error("AI gateway error: " + response.status);
     }
 
     const aiData = await response.json();
     const content = aiData.choices?.[0]?.message?.content || "";
+
+    if (!content || content.trim().length === 0) {
+      throw new Error("AI returned empty response");
+    }
 
     // Parse JSON from response, stripping markdown fences if present
     let cleaned = content.trim();
@@ -77,7 +82,20 @@ Skip empty lines. For beginner level use simple words and analogies. Return ONLY
       cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
     }
 
-    const parsed = JSON.parse(cleaned);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      console.error("Failed to parse AI response:", cleaned.substring(0, 500));
+      throw new Error("AI returned invalid JSON");
+    }
+
+    // Normalize flow mode: if response wrapped in object, extract the array
+    if (mode === "flow" && !Array.isArray(parsed)) {
+      const keys = Object.keys(parsed);
+      const arrKey = keys.find(k => Array.isArray(parsed[k]));
+      if (arrKey) parsed = parsed[arrKey];
+    }
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
