@@ -52,5 +52,5 @@ export function useExplainCode() {
     }
   };
 
-  return { explanation, flowSteps, loading, flowLoading, error, explain, generateFlow };
+  return { explanation, flowSteps, loading, flowLoading, error, explain, generateFlow, setExplanation, setFlowSteps };
 }
